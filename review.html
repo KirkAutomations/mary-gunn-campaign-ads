@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ad Review — Mary Gunn Campaign</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111; color: #eee; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 8px; font-size: 1.6rem; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 30px; font-size: 0.9rem; }
+  .campaign-header { font-size: 1.3rem; color: #d4a843; border-bottom: 1px solid #333; padding: 12px 0 6px; margin: 30px 0 16px; }
+  .campaign-header.universal { color: #c62828; }
+  .concept-header { font-size: 1rem; color: #aaa; margin: 20px 0 10px; padding-left: 4px; }
+  .ad-card {
+    display: inline-block; vertical-align: top; margin: 8px; padding: 10px;
+    background: #1a1a1a; border: 2px solid #333; border-radius: 8px;
+    transition: border-color 0.2s; cursor: pointer;
+  }
+  .ad-card.marked { border-color: #c62828; background: #1a1111; }
+  .ad-card .label { font-size: 0.75rem; color: #888; margin-bottom: 6px; text-align: center; }
+  .ad-card img { display: block; image-rendering: auto; max-width: 100%; height: auto; }
+  .ad-card .actions { margin-top: 8px; text-align: center; }
+  .btn-redo {
+    padding: 4px 16px; border: none; border-radius: 4px; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600; transition: all 0.15s;
+  }
+  .btn-redo.ok { background: #2a5a2a; color: #8f8; }
+  .btn-redo.redo { background: #8b1a1a; color: #fbb; }
+  #output-section {
+    position: sticky; bottom: 0; background: #1a1a1a; border-top: 2px solid #d4a843;
+    padding: 16px; margin-top: 40px; z-index: 100;
+  }
+  #output-section h2 { font-size: 1rem; margin-bottom: 8px; }
+  #output-text {
+    width: 100%; min-height: 80px; background: #111; color: #eee;
+    border: 1px solid #444; border-radius: 4px; padding: 10px;
+    font-family: monospace; font-size: 0.85rem; resize: vertical;
+  }
+  .copy-btn {
+    margin-top: 8px; padding: 8px 24px; background: #d4a843; color: #111;
+    border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 0.9rem;
+  }
+  .copy-btn:hover { background: #e8bc5a; }
+  .count-bar { text-align: center; margin: 10px 0; font-size: 0.9rem; }
+  .count-bar .ok-count { color: #8f8; }
+  .count-bar .redo-count { color: #f88; }
+  .mark-all-bar { text-align: center; margin-bottom: 16px; }
+  .mark-all-bar button {
+    padding: 6px 18px; margin: 0 6px; border: 1px solid #555; border-radius: 4px;
+    background: #222; color: #ccc; cursor: pointer; font-size: 0.8rem;
+  }
+  .mark-all-bar button:hover { background: #333; }
+</style>
+</head>
+<body>
+
+<h1>🔍 Ad Review</h1>
+<p class="subtitle">Click an ad to toggle it for redo. Copy the output at the bottom when done.</p>
+
+<div class="mark-all-bar">
+  <button onclick="markAll(true)">Mark All Redo</button>
+  <button onclick="markAll(false)">Clear All</button>
+</div>
+<div class="count-bar">
+  <span class="ok-count" id="ok-count">54 OK</span> · <span class="redo-count" id="redo-count">0 Redo</span>
+</div>
+
+<div id="gallery"></div>
+
+<div id="output-section">
+  <h2>📋 Redo List (copy and paste into chat)</h2>
+  <textarea id="output-text" readonly>No ads marked for redo.</textarea>
+  <button class="copy-btn" onclick="copyOutput()">Copy to Clipboard</button>
+</div>
+
+<script>
+const BASE = '.';
+const campaigns = [
+  {
+    id: 'honors', label: 'Honors Classes', cssClass: '',
+    concepts: [
+      { id: 'honors-excellence', label: 'Honors Excellence', tagline: 'Honors Classes. AP Courses. No Compromise.' },
+      { id: 'every-learner-challenged', label: 'Every Learner Challenged', tagline: 'Every Student Deserves to Be Challenged.' },
+      { id: 'academic-standards-matter', label: 'Academic Standards Matter', tagline: "Protect Troy's Academic Excellence." }
+    ]
+  },
+  {
+    id: 'universal', label: 'Universal', cssClass: 'universal',
+    concepts: [
+      { id: 'steady-leadership', label: 'Steady Leadership', tagline: 'Experienced. Committed. Ready.' },
+      { id: 'students-first', label: 'Students First', tagline: 'Every Decision Starts with Students.' },
+      { id: 'strong-schools', label: 'Strong Schools', tagline: "Troy's Schools Deserve a Proven Leader." }
+    ]
+  }
+];
+
+const sizes = [
+  [300,250], [250,250], [728,90], [970,90], [320,100], [300,50], [320,50], [300,600], [160,600]
+];
+
+const state = {};
+
+function adKey(campaignId, conceptId, w, h) {
+  return `${campaignId}/${conceptId}/${w}x${h}`;
+}
+
+function imgPath(campaignId, conceptId, w, h) {
+  return `${BASE}/proofs/${campaignId}/${conceptId}/gunn-${conceptId}-${w}x${h}.png`;
+}
+
+function toggle(key, card) {
+  state[key] = !state[key];
+  render(key, card);
+  updateOutput();
+}
+
+function render(key, card) {
+  if (state[key]) {
+    card.classList.add('marked');
+    card.querySelector('.btn-redo').className = 'btn-redo redo';
+    card.querySelector('.btn-redo').textContent = 'REDO';
+  } else {
+    card.classList.remove('marked');
+    card.querySelector('.btn-redo').className = 'btn-redo ok';
+    card.querySelector('.btn-redo').textContent = 'OK';
+  }
+}
+
+function markAll(val) {
+  document.querySelectorAll('.ad-card').forEach(card => {
+    const key = card.dataset.key;
+    state[key] = val;
+    render(key, card);
+  });
+  updateOutput();
+}
+
+function updateOutput() {
+  const redos = Object.entries(state).filter(([,v]) => v).map(([k]) => k);
+  const okCount = Object.keys(state).length - redos.length;
+  document.getElementById('ok-count').textContent = `${okCount} OK`;
+  document.getElementById('redo-count').textContent = `${redos.length} Redo`;
+
+  const ta = document.getElementById('output-text');
+  if (redos.length === 0) {
+    ta.value = 'No ads marked for redo.';
+    return;
+  }
+  let lines = [`Redo these ${redos.length} ads:\n`];
+  for (const r of redos) {
+    lines.push(`- ${r}`);
+  }
+  ta.value = lines.join('\n');
+}
+
+function copyOutput() {
+  const ta = document.getElementById('output-text');
+  ta.select();
+  navigator.clipboard.writeText(ta.value);
+  const btn = document.querySelector('.copy-btn');
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => btn.textContent = 'Copy to Clipboard', 1500);
+}
+
+const gallery = document.getElementById('gallery');
+
+for (const camp of campaigns) {
+  const ch = document.createElement('h2');
+  ch.className = 'campaign-header ' + camp.cssClass;
+  ch.textContent = camp.label;
+  gallery.appendChild(ch);
+
+  for (const concept of camp.concepts) {
+    const cc = document.createElement('h3');
+    cc.className = 'concept-header';
+    cc.textContent = `${concept.label} — ${concept.tagline}`;
+    gallery.appendChild(cc);
+
+    for (const [w, h] of sizes) {
+      const key = adKey(camp.id, concept.id, w, h);
+      state[key] = false;
+
+      const card = document.createElement('div');
+      card.className = 'ad-card';
+      card.dataset.key = key;
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = `${w}×${h}`;
+
+      const img = document.createElement('img');
+      img.src = imgPath(camp.id, concept.id, w, h) + '?v=' + Date.now();
+      img.alt = `${concept.label} ${w}x${h}`;
+      img.loading = 'lazy';
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const btn = document.createElement('button');
+      btn.className = 'btn-redo ok';
+      btn.textContent = 'OK';
+      btn.onclick = (e) => { e.stopPropagation(); toggle(key, card); };
+      actions.appendChild(btn);
+
+      card.appendChild(label);
+      card.appendChild(img);
+      card.appendChild(actions);
+      card.onclick = () => toggle(key, card);
+
+      gallery.appendChild(card);
+    }
+  }
+}
+
+updateOutput();
+</script>
+</body>
+</html>
